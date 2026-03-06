@@ -1,7 +1,7 @@
 {
   "id": "composio",
-  "name": "Multi-Account Composio Plugin for OpenClaw",
-  "description": "Access 1000+ third-party tools via Composio (Gmail, Slack, GitHub, Notion, etc.)",
+  "name": "ClawPilot Composio Plugin for OpenClaw",
+  "description": "Access third-party tools via a ClawPilot-managed Composio user binding",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -13,18 +13,26 @@
       "apiKey": {
         "type": "string",
         "description": "Composio API key (or set COMPOSIO_API_KEY env var)"
+      },
+      "userId": {
+        "type": "string",
+        "description": "ClawPilot-managed Composio user ID (or set COMPOSIO_USER_ID env var)"
       }
     }
   },
   "uiHints": {
     "enabled": {
       "label": "Enable Composio",
-      "help": "Enable or disable the Multi-Account Composio Plugin for OpenClaw integration"
+      "help": "Enable or disable the ClawPilot Composio integration"
     },
     "apiKey": {
       "label": "API Key",
       "help": "Composio API key from platform.composio.dev/settings",
       "sensitive": true
+    },
+    "userId": {
+      "label": "User ID",
+      "help": "ClawPilot-managed Composio user ID"
     }
   }
 }

@@ -8,6 +8,7 @@ import { isRecord } from "./utils.js";
 export const ComposioConfigSchema = z.object({
   enabled: z.boolean().default(true),
   apiKey: z.string().optional(),
+  userId: z.string().optional(),
 });
 
 /**
@@ -24,10 +25,19 @@ export function parseComposioConfig(value: unknown): ComposioConfig {
     (typeof raw.apiKey === "string" && raw.apiKey.trim()) ||
     process.env.COMPOSIO_API_KEY ||
     "";
+  const userId =
+    (typeof source.userId === "string" && source.userId.trim()) ||
+    (typeof source.defaultUserId === "string" && source.defaultUserId.trim()) ||
+    (typeof raw.userId === "string" && raw.userId.trim()) ||
+    (typeof raw.defaultUserId === "string" && raw.defaultUserId.trim()) ||
+    process.env.COMPOSIO_USER_ID ||
+    process.env.COMPOSIO_DEFAULT_USER_ID ||
+    "";
 
   return ComposioConfigSchema.parse({
     enabled,
     apiKey,
+    userId,
   });
 }
 
@@ -43,6 +53,10 @@ export const composioConfigUiHints = {
     label: "API Key",
     help: "Composio API key from platform.composio.dev/settings",
     sensitive: true,
+  },
+  userId: {
+    label: "User ID",
+    help: "ClawPilot-managed Composio user ID used for all tool calls",
   },
 };
 

@@ -5,6 +5,7 @@
 export interface ComposioConfig {
   enabled: boolean;
   apiKey?: string;
+  userId?: string;
 }
 
 export interface ToolSearchResult {

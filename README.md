@@ -1,13 +1,18 @@
-# Multi-Account Composio Plugin for OpenClaw
+# ClawPilot Composio Plugin for OpenClaw
 
-OpenClaw plugin for [Composio](https://composio.dev)'s Tool Router. Unlike the [official plugin](https://github.com/ComposioHQ/openclaw-composio-plugin), this one supports multiple accounts (e.g. connecting several Gmail accounts under different user IDs).
+OpenClaw plugin for [Composio](https://composio.dev)'s Tool Router, hardened for ClawPilot-hosted multi-tenant deployments.
 
-Both plugins use plugin id `composio`, so only run one at a time.
+This fork is intentionally host-scoped:
+
+- it requires a configured `userId`
+- all tool calls execute only for that configured `userId`
+- it does not expose cross-user account discovery or hints
+- if `userId` is missing, the plugin fails closed
 
 ## Install
 
 ```bash
-openclaw plugins install @customclaw/composio
+openclaw plugins install @clawpilot/composio
 ```
 
 ## Setup
@@ -29,7 +34,8 @@ Or add manually to `~/.openclaw/openclaw.json`:
       "composio": {
         "enabled": true,
         "config": {
-          "apiKey": "your-api-key"
+          "apiKey": "your-api-key",
+          "userId": "clawpilot-user-id"
         }
       }
     }
@@ -37,7 +43,7 @@ Or add manually to `~/.openclaw/openclaw.json`:
 }
 ```
 
-You can also set `COMPOSIO_API_KEY` as an environment variable.
+You can also set `COMPOSIO_API_KEY` and `COMPOSIO_USER_ID` as environment variables.
 
 3. Restart the gateway.
 
@@ -49,23 +55,24 @@ The plugin gives your agent three tools:
 - `composio_execute_tool` — runs a Composio action (e.g. `GMAIL_FETCH_EMAILS`, `SENTRY_LIST_ISSUES`)
 - `composio_manage_connections` — checks connection status and generates OAuth links for unconnected toolkits
 
-Both `composio_search_tools` and `composio_execute_tool` require a `user_id` so actions are always scoped to a specific user. `composio_execute_tool` also accepts an optional `connected_account_id` when multiple accounts exist for the same toolkit.
+All tools are automatically scoped to the configured `userId`. Agents do not provide `user_id`.
+`composio_execute_tool` accepts an optional `connected_account_id` when multiple accounts exist for the same toolkit inside that same configured user scope.
 
 ## Config options
 
 | Key | Description |
 |-----|-------------|
 | `apiKey` | Composio API key (required) |
+| `userId` | ClawPilot-managed Composio user ID (required) |
 
 ## CLI
 
 ```bash
-openclaw composio setup                                 # interactive setup
-openclaw composio list --user-id user-123               # list available toolkits
-openclaw composio status [toolkit] --user-id user-123   # check connection status
-openclaw composio connect gmail --user-id user-123      # open OAuth link
-openclaw composio disconnect gmail --user-id user-123   # remove a connection
-openclaw composio accounts [toolkit]                    # inspect connected accounts
+openclaw composio setup --user-id user-123       # interactive setup
+openclaw composio list                           # list available toolkits
+openclaw composio status [toolkit]               # check connection status
+openclaw composio connect gmail                  # open OAuth link
+openclaw composio disconnect gmail               # remove a connection
 ```
 
 ## Updating
@@ -78,8 +85,8 @@ openclaw gateway restart
 ## Development
 
 ```bash
-git clone https://github.com/customclaw/composio.git
-cd composio
+git clone https://github.com/SepehrShapouri/clawpilot-composio.git
+cd clawpilot-composio
 npm install
 npm run build
 npm test

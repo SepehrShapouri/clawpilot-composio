@@ -6,7 +6,7 @@ import { createComposioConnectionsTool } from "./tools/connections.js";
 import { registerComposioCli } from "./cli.js";
 
 /**
- * Multi-Account Composio Plugin for OpenClaw
+ * ClawPilot Composio Plugin for OpenClaw
  *
  * Provides access to 1000+ third-party tools through Composio's unified interface.
  * Tools include: Gmail, Slack, GitHub, Notion, Linear, Jira, and many more.
@@ -17,7 +17,8 @@ import { registerComposioCli } from "./cli.js";
  *   "plugins": {
  *     "composio": {
  *       "enabled": true,
- *       "apiKey": "your-composio-api-key"
+ *       "apiKey": "your-composio-api-key",
+ *       "userId": "clawpilot-user-id"
  *     }
  *   }
  * }
@@ -27,9 +28,9 @@ import { registerComposioCli } from "./cli.js";
  */
 const composioPlugin = {
   id: "composio",
-  name: "Multi-Account Composio Plugin for OpenClaw",
+  name: "ClawPilot Composio Plugin for OpenClaw",
   description:
-    "Access 1000+ third-party tools via Multi-Account Composio Plugin for OpenClaw. " +
+    "Access third-party tools via a ClawPilot-managed Composio tenant binding. " +
     "Search, authenticate, and execute tools for Gmail, Slack, GitHub, Notion, and more.",
   configSchema: composioPluginConfigSchema,
 
@@ -41,6 +42,11 @@ const composioPlugin = {
       if (!config.apiKey) {
         throw new Error(
           "Composio API key required. Run 'openclaw composio setup' or set COMPOSIO_API_KEY."
+        );
+      }
+      if (!config.userId) {
+        throw new Error(
+          "Composio userId required. Set plugins.composio.userId in config or COMPOSIO_USER_ID."
         );
       }
       if (!client) {
@@ -69,6 +75,12 @@ const composioPlugin = {
     if (!config.apiKey) {
       api.logger.warn(
         "[composio] No API key configured. Set COMPOSIO_API_KEY env var or plugins.composio.apiKey in config."
+      );
+      return;
+    }
+    if (!config.userId) {
+      api.logger.warn(
+        "[composio] No userId configured. Set COMPOSIO_USER_ID env var or plugins.composio.userId in config."
       );
       return;
     }

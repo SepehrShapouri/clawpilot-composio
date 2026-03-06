@@ -98,9 +98,23 @@ describe("composio plugin registration", () => {
     );
   });
 
-  it("registers all tools and lazily initializes a single client instance when configured", async () => {
+  it("does not register tools without userId", async () => {
     const { default: composioPlugin } = await import("./index.js");
     const api = makeApi({ enabled: true, apiKey: "test-key" });
+
+    composioPlugin.register(api as any);
+
+    expect(api.registerCli).toHaveBeenCalledTimes(1);
+    expect(api.registerTool).not.toHaveBeenCalled();
+    expect(createComposioClientMock).not.toHaveBeenCalled();
+    expect(api.logger.warn).toHaveBeenCalledWith(
+      "[composio] No userId configured. Set COMPOSIO_USER_ID env var or plugins.composio.userId in config."
+    );
+  });
+
+  it("registers all tools and lazily initializes a single client instance when configured", async () => {
+    const { default: composioPlugin } = await import("./index.js");
+    const api = makeApi({ enabled: true, apiKey: "test-key", userId: "tenant-user" });
 
     composioPlugin.register(api as any);
 

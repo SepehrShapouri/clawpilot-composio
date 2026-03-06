@@ -50,6 +50,7 @@ function makeClient(overrides?: Partial<ReturnType<typeof parseComposioConfig>>)
   return new ComposioClient({
     enabled: true,
     apiKey: "test-key",
+    userId: "default",
     ...overrides,
   });
 }
@@ -73,9 +74,12 @@ describe("config parsing", () => {
 
   it("falls back to env var", () => {
     process.env.COMPOSIO_API_KEY = "from-env";
+    process.env.COMPOSIO_USER_ID = "env-user";
     const config = parseComposioConfig({});
     expect(config.apiKey).toBe("from-env");
+    expect(config.userId).toBe("env-user");
     delete process.env.COMPOSIO_API_KEY;
+    delete process.env.COMPOSIO_USER_ID;
   });
 
   it("defaults enabled to true", () => {
@@ -87,13 +91,13 @@ describe("config parsing", () => {
 describe("connection status", () => {
   it("reports gmail as connected", async () => {
     const client = makeClient();
-    const statuses = await client.getConnectionStatus(["gmail"], "default");
+    const statuses = await client.getConnectionStatus(["gmail"]);
     expect(statuses[0].connected).toBe(true);
   });
 
   it("reports sentry as not connected", async () => {
     const client = makeClient();
-    const statuses = await client.getConnectionStatus(["sentry"], "default");
+    const statuses = await client.getConnectionStatus(["sentry"]);
     expect(statuses[0].connected).toBe(false);
   });
 
@@ -105,13 +109,13 @@ describe("connection status", () => {
       nextCursor: null,
     });
 
-    const statuses = await client.getConnectionStatus(["affinity"], "default");
+    const statuses = await client.getConnectionStatus(["affinity"]);
     expect(statuses[0].connected).toBe(true);
   });
 
   it("returns only connected toolkits when no filter", async () => {
     const client = makeClient();
-    const statuses = await client.getConnectionStatus(undefined, "default");
+    const statuses = await client.getConnectionStatus();
     expect(statuses.every(s => s.connected)).toBe(true);
     expect(statuses.map(s => s.toolkit)).toEqual(["gmail", "github"]);
   });
@@ -121,7 +125,7 @@ describe("execute tool", () => {
   it("executes and returns result", async () => {
     const client = makeClient();
     const instance = await getLatestComposioInstance();
-    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {}, "default");
+    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {});
     expect(result.success).toBe(true);
     expect(result.data).toEqual({ messages: [] });
     expect(instance.tools.executeMetaTool).toHaveBeenCalledWith(
@@ -153,7 +157,7 @@ describe("execute tool", () => {
       },
     });
 
-    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {}, "default");
+    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {});
     expect(result.success).toBe(true);
     expect(result.data).toEqual({ messages: [{ id: "m1" }] });
   });
@@ -167,30 +171,31 @@ describe("execute tool", () => {
       user_id: "default",
     });
 
-    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {}, "default", "ca_explicit");
+    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {}, undefined, "ca_explicit");
     expect(result.success).toBe(true);
     expect(instance.toolRouter.create).toHaveBeenCalledWith("default", {
       connectedAccounts: { gmail: "ca_explicit" },
     });
   });
 
-  it("requires explicit user_id even when connected_account_id is provided", async () => {
+  it("uses configured userId when connected_account_id is provided", async () => {
     const client = makeClient();
     const instance = await getLatestComposioInstance();
     instance.connectedAccounts.get.mockResolvedValueOnce({
       toolkit: { slug: "gmail" },
       status: "ACTIVE",
-      user_id: "customclaw",
+      user_id: "default",
     });
 
-    await expect(
-      client.executeTool("GMAIL_FETCH_EMAILS", {}, undefined, "ca_explicit")
-    ).rejects.toThrow(/user_id/i);
-    expect(instance.toolRouter.create).not.toHaveBeenCalled();
+    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {}, undefined, "ca_explicit");
+    expect(result.success).toBe(true);
+    expect(instance.toolRouter.create).toHaveBeenCalledWith("default", {
+      connectedAccounts: { gmail: "ca_explicit" },
+    });
   });
 
-  it("errors when explicit user_id does not match connected_account_id owner", async () => {
-    const client = makeClient();
+  it("errors when explicit user_id does not match configured userId", async () => {
+    const client = makeClient({ userId: "founding" });
     const instance = await getLatestComposioInstance();
     instance.connectedAccounts.get.mockResolvedValueOnce({
       toolkit: { slug: "gmail" },
@@ -198,14 +203,14 @@ describe("execute tool", () => {
       user_id: "customclaw",
     });
 
-    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {}, "founding", "ca_explicit");
+    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {}, undefined, "ca_explicit");
     expect(result.success).toBe(false);
     expect(result.error).toContain("belongs to user_id 'customclaw'");
-    expect(result.error).toContain("'founding' was requested");
+    expect(result.error).toContain("'founding' is configured");
   });
 
   it("fails closed when explicit connected_account_id owner metadata is missing", async () => {
-    const client = makeClient();
+    const client = makeClient({ userId: "founding" });
     const instance = await getLatestComposioInstance();
     instance.connectedAccounts.get.mockResolvedValueOnce({
       toolkit: { slug: "gmail" },
@@ -216,7 +221,7 @@ describe("execute tool", () => {
       next_cursor: null,
     });
 
-    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {}, "founding", "ca_explicit");
+    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {}, undefined, "ca_explicit");
     expect(result.success).toBe(false);
     expect(result.error).toContain("ownership could not be verified");
     expect(instance.client.connectedAccounts.list).toHaveBeenCalledWith({
@@ -237,7 +242,7 @@ describe("execute tool", () => {
       next_cursor: null,
     });
 
-    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {}, "default");
+    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {});
     expect(result.success).toBe(true);
     expect(instance.toolRouter.create).toHaveBeenCalledWith("default", {
       connectedAccounts: { gmail: "ca_single" },
@@ -255,7 +260,7 @@ describe("execute tool", () => {
       next_cursor: null,
     });
 
-    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {}, "default");
+    const result = await client.executeTool("GMAIL_FETCH_EMAILS", {});
     expect(result.success).toBe(false);
     expect(result.error).toContain("Multiple ACTIVE 'gmail' accounts");
     expect(result.error).toContain("ca_1");
@@ -263,7 +268,7 @@ describe("execute tool", () => {
   });
 
   it("fails when meta-tool resolves entity as default for non-default user", async () => {
-    const client = makeClient();
+    const client = makeClient({ userId: "pg-user" });
     const instance = await getLatestComposioInstance();
 
     instance.client.connectedAccounts.list.mockResolvedValueOnce({
@@ -281,18 +286,14 @@ describe("execute tool", () => {
       },
     });
 
-    const result = await client.executeTool(
-      "SENTRY_GET_ORGANIZATION_DETAILS",
-      {},
-      "pg-user"
-    );
+    const result = await client.executeTool("SENTRY_GET_ORGANIZATION_DETAILS", {}, "pg-user");
 
     expect(result.success).toBe(false);
     expect(instance.tools.execute).not.toHaveBeenCalled();
   });
 
   it("does not retry execution using server-hinted identifiers", async () => {
-    const client = makeClient();
+    const client = makeClient({ userId: "pg-user" });
     const instance = await getLatestComposioInstance();
 
     instance.client.connectedAccounts.list.mockResolvedValueOnce({
@@ -334,7 +335,7 @@ describe("execute tool", () => {
   });
 
   it("does not use direct execution fallback when meta-tool execution fails", async () => {
-    const client = makeClient();
+    const client = makeClient({ userId: "pg-user" });
     const instance = await getLatestComposioInstance();
 
     instance.client.connectedAccounts.list.mockResolvedValueOnce({
@@ -352,11 +353,7 @@ describe("execute tool", () => {
       },
     });
 
-    const result = await client.executeTool(
-      "SENTRY_GET_ORGANIZATION_DETAILS",
-      {},
-      "pg-user"
-    );
+    const result = await client.executeTool("SENTRY_GET_ORGANIZATION_DETAILS", {}, "pg-user");
 
     expect(result.success).toBe(false);
     expect(instance.tools.execute).not.toHaveBeenCalled();
@@ -364,36 +361,41 @@ describe("execute tool", () => {
 });
 
 describe("strict user scoping", () => {
-  it("requires explicit user_id for search", async () => {
+  it("uses configured userId for search", async () => {
     const client = makeClient();
-    await expect(client.searchTools("fetch email")).rejects.toThrow(/user_id/i);
+    await expect(client.searchTools("fetch email")).resolves.toEqual(expect.any(Array));
   });
 
-  it("requires explicit user_id for execute", async () => {
+  it("uses configured userId for execute", async () => {
     const client = makeClient();
-    await expect(client.executeTool("GMAIL_FETCH_EMAILS", {})).rejects.toThrow(/user_id/i);
+    await expect(client.executeTool("GMAIL_FETCH_EMAILS", {})).resolves.toMatchObject({ success: true });
   });
 
-  it("requires explicit user_id for status", async () => {
+  it("uses configured userId for status", async () => {
     const client = makeClient();
-    await expect(client.getConnectionStatus(["gmail"])).rejects.toThrow(/user_id/i);
+    await expect(client.getConnectionStatus(["gmail"])).resolves.toEqual(expect.any(Array));
   });
 
-  it("requires explicit user_id for createConnection", async () => {
+  it("uses configured userId for createConnection", async () => {
     const client = makeClient();
-    await expect(client.createConnection("gmail")).rejects.toThrow(/user_id/i);
+    await expect(client.createConnection("gmail")).resolves.toHaveProperty("authUrl");
   });
 
-  it("requires explicit user_id for listToolkits", async () => {
+  it("uses configured userId for listToolkits", async () => {
     const client = makeClient();
-    await expect(client.listToolkits()).rejects.toThrow(/user_id/i);
+    await expect(client.listToolkits()).resolves.toEqual(expect.any(Array));
+  });
+
+  it("fails closed when no configured userId exists", async () => {
+    const client = makeClient({ userId: "" });
+    await expect(client.searchTools("fetch email")).rejects.toThrow(/userId/i);
   });
 });
 
 describe("create connection", () => {
   it("returns auth URL", async () => {
     const client = makeClient();
-    const result = await client.createConnection("gmail", "default");
+    const result = await client.createConnection("gmail");
     expect("authUrl" in result).toBe(true);
     if ("authUrl" in result) {
       expect(result.authUrl).toContain("connect.composio.dev");
@@ -411,7 +413,7 @@ describe("create connection", () => {
       experimental: { assistivePrompt: "" },
     });
 
-    const result = await client.createConnection("gmail", "explicit-user");
+    const result = await client.createConnection("gmail");
     expect("error" in result).toBe(true);
     if ("error" in result) {
       expect(result.error).toMatch(/auth url/i);
@@ -431,7 +433,7 @@ describe("disconnect toolkit", () => {
       next_cursor: null,
     });
 
-    const result = await client.disconnectToolkit("gmail", "default");
+    const result = await client.disconnectToolkit("gmail");
     expect(result.success).toBe(true);
     expect(instance.connectedAccounts.delete).toHaveBeenCalledWith("ca_gmail");
   });
@@ -448,7 +450,7 @@ describe("disconnect toolkit", () => {
       next_cursor: null,
     });
 
-    const result = await client.disconnectToolkit("gmail", "default");
+    const result = await client.disconnectToolkit("gmail");
     expect(result.success).toBe(false);
     expect(result.error).toContain("Multiple ACTIVE 'gmail' accounts");
     expect(instance.connectedAccounts.delete).not.toHaveBeenCalled();
@@ -475,6 +477,7 @@ describe("connected accounts discovery", () => {
     const accounts = await client.listConnectedAccounts({ toolkits: ["sentry"], statuses: ["ACTIVE"] });
     expect(instance.client.connectedAccounts.list).toHaveBeenCalledWith({
       toolkit_slugs: ["sentry"],
+      user_ids: ["default"],
       statuses: ["ACTIVE"],
       limit: 100,
     });
@@ -513,6 +516,7 @@ describe("connected accounts discovery", () => {
     const accounts = await client.listConnectedAccounts({ toolkits: ["sentry"], statuses: ["ACTIVE"] });
     expect(instance.connectedAccounts.list).toHaveBeenCalledWith({
       toolkitSlugs: ["sentry"],
+      userIds: ["default"],
       statuses: ["ACTIVE"],
       limit: 100,
     });
@@ -530,20 +534,11 @@ describe("connected accounts discovery", () => {
     ]);
   });
 
-  it("finds active user IDs for toolkit", async () => {
+  it("rejects connected account discovery outside the configured user scope", async () => {
     const client = makeClient();
-    const instance = await getLatestComposioInstance();
-    instance.client.connectedAccounts.list.mockResolvedValueOnce({
-      items: [
-        { id: "ca_1", user_id: "default", status: "ACTIVE", toolkit: { slug: "sentry" } },
-        { id: "ca_2", user_id: "user-b", status: "ACTIVE", toolkit: { slug: "sentry" } },
-        { id: "ca_3", user_id: "default", status: "ACTIVE", toolkit: { slug: "sentry" } },
-      ],
-      next_cursor: null,
-    });
-
-    const userIds = await client.findActiveUserIdsForToolkit("sentry");
-    expect(userIds).toEqual(["default", "user-b"]);
+    await expect(
+      client.listConnectedAccounts({ toolkits: ["sentry"], userIds: ["other-user"], statuses: ["ACTIVE"] })
+    ).rejects.toThrow(/outside the configured userId/i);
   });
 });
 
@@ -562,7 +557,7 @@ describe("session caching", () => {
 describe("execute tool string arguments (GLM-5 workaround)", () => {
   function makeTool() {
     const client = makeClient();
-    const config = parseComposioConfig({ config: { apiKey: "test-key" } });
+    const config = parseComposioConfig({ config: { apiKey: "test-key", userId: "default" } });
     return createComposioExecuteTool(client, config);
   }
 
@@ -571,7 +566,6 @@ describe("execute tool string arguments (GLM-5 workaround)", () => {
     const result = await tool.execute("test", {
       tool_slug: "GMAIL_FETCH_EMAILS",
       arguments: '{"user_id": "me", "max_results": 5}',
-      user_id: "default",
     });
     expect(result.details).toHaveProperty("success", true);
   });
@@ -581,7 +575,6 @@ describe("execute tool string arguments (GLM-5 workaround)", () => {
     const result = await tool.execute("test", {
       tool_slug: "GMAIL_FETCH_EMAILS",
       arguments: { user_id: "me", max_results: 5 },
-      user_id: "default",
     });
     expect(result.details).toHaveProperty("success", true);
   });
@@ -591,7 +584,6 @@ describe("execute tool string arguments (GLM-5 workaround)", () => {
     const result = await tool.execute("test", {
       tool_slug: "GMAIL_FETCH_EMAILS",
       arguments: "not valid json",
-      user_id: "default",
     });
     expect(result.details).toHaveProperty("success", true);
   });
@@ -600,7 +592,6 @@ describe("execute tool string arguments (GLM-5 workaround)", () => {
     const tool = makeTool();
     const result = await tool.execute("test", {
       tool_slug: "GMAIL_FETCH_EMAILS",
-      user_id: "default",
     });
     expect(result.details).toHaveProperty("success", true);
   });
@@ -609,11 +600,11 @@ describe("execute tool string arguments (GLM-5 workaround)", () => {
 describe("connections tool", () => {
   function makeConnectionsTool() {
     const client = makeClient();
-    const config = parseComposioConfig({ config: { apiKey: "test-key" } });
+    const config = parseComposioConfig({ config: { apiKey: "test-key", userId: "default" } });
     return createComposioConnectionsTool(client, config);
   }
 
-  it("schema requires user_id for list/create/status but not accounts", () => {
+  it("schema does not expose user_id or accounts action", () => {
     const tool = makeConnectionsTool();
     const schema = tool.parameters as any;
     const branches = Array.isArray(schema.anyOf) ? schema.anyOf : [];
@@ -626,17 +617,17 @@ describe("connections tool", () => {
     const statusBranch = byAction("status");
     const accountsBranch = byAction("accounts");
 
-    expect(listBranch?.required).toContain("user_id");
-    expect(createBranch?.required).toContain("user_id");
-    expect(statusBranch?.required).toContain("user_id");
-    expect(accountsBranch?.required ?? []).not.toContain("user_id");
+    expect(listBranch?.required ?? []).not.toContain("user_id");
+    expect(createBranch?.required ?? []).not.toContain("user_id");
+    expect(statusBranch?.required ?? []).not.toContain("user_id");
+    expect(accountsBranch).toBeUndefined();
   });
 
-  it("list action passes user_id to client", async () => {
+  it("list action uses configured userId", async () => {
     const tool = makeConnectionsTool();
-    await tool.execute("test", { action: "list", user_id: "custom-user" });
+    await tool.execute("test", { action: "list" });
     const instance = await getLatestComposioInstance();
-    expect(instance.toolRouter.create).toHaveBeenCalledWith("custom-user", undefined);
+    expect(instance.toolRouter.create).toHaveBeenCalledWith("default", undefined);
   });
 
   it("status uses active connected accounts as fallback", async () => {
@@ -647,7 +638,7 @@ describe("connections tool", () => {
       nextCursor: null,
     });
 
-    const result = await tool.execute("test", { action: "status", toolkit: "affinity", user_id: "default" });
+    const result = await tool.execute("test", { action: "status", toolkit: "affinity" });
     const details = result.details as any;
     const conn = details.connections.find((c: any) => c.toolkit === "affinity");
     expect(conn.connected).toBe(true);
@@ -659,45 +650,16 @@ describe("connections tool", () => {
 
   it("status keeps disconnected when no active account exists", async () => {
     const tool = makeConnectionsTool();
-    const result = await tool.execute("test", { action: "status", toolkit: "sentry", user_id: "default" });
+    const result = await tool.execute("test", { action: "status", toolkit: "sentry" });
     const details = result.details as any;
     const conn = details.connections.find((c: any) => c.toolkit === "sentry");
     expect(conn.connected).toBe(false);
   });
 
-  it("status returns an error when user_id is omitted", async () => {
+  it("status succeeds without exposing user_id input", async () => {
     const tool = makeConnectionsTool();
     const result = await tool.execute("test", { action: "status", toolkit: "sentry" });
     const details = result.details as any;
-    expect(details.error).toMatch(/user_id/i);
-  });
-
-  it("accounts action returns connected accounts", async () => {
-    const tool = makeConnectionsTool();
-    const instance = await getLatestComposioInstance();
-    instance.client.connectedAccounts.list.mockResolvedValueOnce({
-      items: [
-        {
-          id: "ca_1",
-          user_id: "user-a",
-          status: "ACTIVE",
-          toolkit: { slug: "sentry" },
-          auth_config: { id: "ac_1" },
-        },
-      ],
-      next_cursor: null,
-    });
-
-    const result = await tool.execute("test", { action: "accounts", toolkit: "sentry", user_id: "user-a" });
-    const details = result.details as any;
-    expect(details.action).toBe("accounts");
-    expect(details.count).toBe(1);
-    expect(details.accounts[0]).toMatchObject({
-      id: "ca_1",
-      toolkit: "sentry",
-      user_id: "user-a",
-      status: "ACTIVE",
-      auth_config_id: "ac_1",
-    });
+    expect(details.error).toBeUndefined();
   });
 });

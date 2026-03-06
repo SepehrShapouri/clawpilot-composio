@@ -111,6 +111,7 @@ describe("composio setup cli", () => {
     await setup.runAction({
       configPath,
       apiKey: "test-api-key",
+      userId: "tenant-user",
       yes: true,
     });
 
@@ -120,6 +121,7 @@ describe("composio setup cli", () => {
     expect(parsed.plugins.deny).toEqual(["legacy-plugin"]);
     expect(parsed.plugins.entries.composio.enabled).toBe(true);
     expect(parsed.plugins.entries.composio.config.apiKey).toBe("test-api-key");
+    expect(parsed.plugins.entries.composio.config.userId).toBe("tenant-user");
     expect(consoleSpy).toHaveBeenCalledWith("plugins.enabled: set to true");
     expect(consoleSpy).toHaveBeenCalledWith("plugins.allow: added 'composio'");
     expect(consoleSpy).toHaveBeenCalledWith("plugins.deny: removed 'composio'");
@@ -131,6 +133,7 @@ describe("composio setup cli", () => {
 
     await setup.runAction({
       configPath,
+      userId: "tenant-user",
       yes: true,
     });
 
@@ -159,6 +162,7 @@ describe("composio setup cli", () => {
     await setup.runAction({
       configPath,
       apiKey: "test-api-key",
+      userId: "tenant-user",
       yes: true,
     });
 
@@ -167,17 +171,17 @@ describe("composio setup cli", () => {
     expect(consoleSpy).toHaveBeenCalledWith("plugins.allow: added 'composio'");
   });
 
-  it("requires --user-id for list command", async () => {
+  it("uses configured userId for list command", async () => {
     const client = {
       listToolkits: vi.fn().mockResolvedValue(["gmail"]),
     };
-    const { composio, logs } = buildCliFixture({ enabled: true }, () => client);
+    const { composio, logs } = buildCliFixture({ enabled: true, userId: "tenant-user" } as any, () => client);
     const list = composio.findCommand("list");
     if (!list) throw new Error("list command was not registered");
 
-    await list.runAction({});
+    await list.runAction();
 
-    expect(logs.some((entry) => entry.message.includes("--user-id is required"))).toBe(true);
-    expect(client.listToolkits).not.toHaveBeenCalled();
+    expect(logs.some((entry) => entry.level === "error")).toBe(false);
+    expect(client.listToolkits).toHaveBeenCalledTimes(1);
   });
 });

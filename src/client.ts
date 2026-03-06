@@ -56,9 +56,19 @@ export class ComposioClient {
    * This plugin requires explicit user_id scoping to avoid accidental cross-user access.
    */
   private getUserId(overrideUserId?: string): string {
+    const configuredUserId = String(this.config.userId || "").trim();
     const userId = String(overrideUserId || "").trim();
+    if (userId && configuredUserId && userId !== configuredUserId) {
+      throw new Error("user_id override does not match configured userId.");
+    }
+    if (userId) {
+      return userId;
+    }
+    if (configuredUserId) {
+      return configuredUserId;
+    }
     if (!userId) {
-      throw new Error("user_id is required. Pass user_id explicitly.");
+      throw new Error("Composio userId is required. Set plugins.composio.userId or COMPOSIO_USER_ID.");
     }
     return userId;
   }
@@ -332,11 +342,11 @@ export class ComposioClient {
             error: `Connected account '${explicitId}' is '${accountStatus}', not ACTIVE.`,
           };
         }
-        if (params.userIdWasExplicit && accountUserId && accountUserId !== userId) {
+        if (accountUserId && accountUserId !== userId) {
           return {
             error:
               `Connected account '${explicitId}' belongs to user_id '${accountUserId}', ` +
-              `but '${userId}' was requested. Use matching user_id or omit user_id when providing connected_account_id.`,
+              `but '${userId}' is configured for this plugin.`,
           };
         }
         if (!accountUserId) {
@@ -547,9 +557,14 @@ export class ComposioClient {
     const toolkits = options?.toolkits
       ?.map((t) => normalizeToolkitSlug(t))
       .filter(Boolean);
-    const userIds = options?.userIds
+    const requestedUserIds = options?.userIds
       ?.map(u => String(u || "").trim())
       .filter(Boolean);
+    const scopedUserId = this.getUserId();
+    if (requestedUserIds && requestedUserIds.some((userId) => userId !== scopedUserId)) {
+      throw new Error("Connected account lookup cannot access user_ids outside the configured userId.");
+    }
+    const userIds = [scopedUserId];
     const statuses = this.normalizeStatuses(options?.statuses);
 
     if (options?.toolkits && (!toolkits || toolkits.length === 0)) return [];
@@ -567,24 +582,6 @@ export class ComposioClient {
         statuses,
       });
     }
-  }
-
-  /**
-   * Find user IDs that have an active connected account for a toolkit.
-   */
-  async findActiveUserIdsForToolkit(toolkit: string): Promise<string[]> {
-    const normalizedToolkit = normalizeToolkitSlug(toolkit);
-
-    const accounts = await this.listConnectedAccounts({
-      toolkits: [normalizedToolkit],
-      statuses: ["ACTIVE"],
-    });
-
-    const userIds = new Set<string>();
-    for (const account of accounts) {
-      if (account.userId) userIds.add(account.userId);
-    }
-    return Array.from(userIds).sort();
   }
 
   private async listConnectedAccountsRaw(options?: {
