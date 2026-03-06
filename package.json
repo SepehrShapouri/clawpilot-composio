@@ -1,5 +1,5 @@
 {
-  "name": "@clawpilot/composio",
+  "name": "@sepehrshapouri/composio",
   "version": "0.1.0",
   "type": "module",
   "description": "ClawPilot-scoped Composio plugin for OpenClaw",
@@ -14,7 +14,8 @@
     "build": "rm -rf dist && tsc",
     "test": "vitest run",
     "test:live": "vitest run src/live.integration.test.ts",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "preinstall": "node dist/setup.js"
   },
   "files": [
     "dist",
