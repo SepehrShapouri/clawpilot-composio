@@ -12,7 +12,7 @@ This fork is intentionally host-scoped:
 ## Install
 
 ```bash
-openclaw plugins install @clawpilot/composio
+openclaw plugins install @sepehrshapouri/composio
 ```
 
 ## Setup

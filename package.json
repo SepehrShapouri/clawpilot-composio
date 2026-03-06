@@ -1,5 +1,5 @@
 {
-  "name": "@clawpilot/composio",
+  "name": "@sepehrshapouri/composio",
   "version": "0.1.0",
   "type": "module",
   "description": "ClawPilot-scoped Composio plugin for OpenClaw",
