@@ -172,8 +172,9 @@ export function registerComposioCli({ program, getClient, config, logger }: Regi
           return;
         }
 
+        const { defaultUserId: _legacyDefaultUserId, ...restExistingComposioConfig } = existingComposioConfig;
         const mergedComposioConfig: Record<string, unknown> = {
-          ...existingComposioConfig,
+          ...restExistingComposioConfig,
           apiKey,
           userId,
         };

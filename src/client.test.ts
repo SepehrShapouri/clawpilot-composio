@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect, vi } from "vitest";
 import { ComposioClient } from "./client.js";
 import { parseComposioConfig } from "./config.js";
@@ -70,6 +71,22 @@ describe("config parsing", () => {
   it("reads apiKey from top-level", () => {
     const config = parseComposioConfig({ apiKey: "from-top" });
     expect(config.apiKey).toBe("from-top");
+  });
+
+  it("accepts legacy defaultUserId in config and maps it to userId", () => {
+    const config = parseComposioConfig({ config: { defaultUserId: "legacy-user" } });
+    expect(config.userId).toBe("legacy-user");
+  });
+
+  it("keeps manifest schema in sync with legacy defaultUserId compatibility", () => {
+    const manifest = JSON.parse(
+      readFileSync(new URL("../openclaw.plugin.json", import.meta.url), "utf8")
+    ) as {
+      configSchema?: { properties?: Record<string, { type?: string }> };
+    };
+
+    expect(manifest.configSchema?.properties?.defaultUserId?.type).toBe("string");
+    expect(manifest.configSchema?.properties?.userId?.type).toBe("string");
   });
 
   it("falls back to env var", () => {

@@ -140,6 +140,41 @@ describe("composio setup cli", () => {
     expect(logs.some((entry) => entry.message.includes("Composio API key is required"))).toBe(true);
   });
 
+  it("migrates legacy defaultUserId config to canonical userId", async () => {
+    const { setup } = buildCliFixture({ enabled: true });
+    const configPath = path.join(tmpDir, "openclaw.json");
+
+    await writeFile(
+      configPath,
+      JSON.stringify(
+        {
+          plugins: {
+            entries: {
+              composio: {
+                enabled: true,
+                config: {
+                  apiKey: "existing-api-key",
+                  defaultUserId: "legacy-user",
+                },
+              },
+            },
+          },
+        },
+        null,
+        2
+      )
+    );
+
+    await setup.runAction({
+      configPath,
+      yes: true,
+    });
+
+    const parsed = JSON.parse(await readFile(configPath, "utf8"));
+    expect(parsed.plugins.entries.composio.config.userId).toBe("legacy-user");
+    expect(parsed.plugins.entries.composio.config.defaultUserId).toBeUndefined();
+  });
+
   it("normalizes allowlist entry to exact lowercase composio id", async () => {
     const { setup } = buildCliFixture({ enabled: true });
     const configPath = path.join(tmpDir, "openclaw.json");

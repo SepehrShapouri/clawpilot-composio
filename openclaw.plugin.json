@@ -17,6 +17,10 @@
       "userId": {
         "type": "string",
         "description": "ClawPilot-managed Composio user ID (or set COMPOSIO_USER_ID env var)"
+      },
+      "defaultUserId": {
+        "type": "string",
+        "description": "Legacy default user ID field kept for backward compatibility; use userId."
       }
     }
   },
