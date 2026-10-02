@@ -14,8 +14,7 @@
     "build": "rm -rf dist && tsc",
     "test": "vitest run",
     "test:live": "vitest run src/live.integration.test.ts",
-    "prepublishOnly": "npm run build",
-    "preinstall": "node dist/setup.js"
+    "prepublishOnly": "npm run build"
   },
   "files": [
     "dist",
